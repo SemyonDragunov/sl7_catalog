@@ -44,7 +44,7 @@ Author: Semyon Dragunov [sam.dragunov@gmail.com](sam.dragunov@gmail.com)
 
 Apache License 2.0
 
-If you need an English version of the module, write @semyondragunov
+If you need an English version of the module, write "@semyondragunov"
 
 ***
 ![screenshot](screenshot_1.png)
