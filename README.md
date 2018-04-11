@@ -36,6 +36,9 @@ Catalog of products or services for the site.
 * Description by category
 * Price field
 
+Required modules from SL7:
+* [sl7_control_panel](https://github.com/SemyonDragunov/sl7_control_panel)
+
 For Drupal 7. PHP =< 5.4
 
 To continue developing css, see bower.json
