@@ -1,0 +1,22 @@
+name = Каталог
+description = Каталог продукции или услуг для сайта.
+package = SL7
+version = 7.x-1.0
+core = 7.x
+
+configure = admin/control-panel/catalog
+
+dependencies[] = sl7_control_panel
+dependencies[] = pathauto
+dependencies[] = path_breadcrumbs
+dependencies[] = transliteration
+dependencies[] = views
+dependencies[] = views_data_export
+dependencies[] = ctools
+dependencies[] = colorbox
+dependencies[] = galleryformatter
+dependencies[] = contextual
+dependencies[] = imagecache_actions
+dependencies[] = imagecache_actions:imagecache_canvasactions
+dependencies[] = image
+dependencies[] = taxonomy

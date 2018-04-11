@@ -1,0 +1,516 @@
+<?php
+
+/**
+ * @author Semyon Dragunov <sam.dragunov@gmail.com>
+ * https://github.com/SemyonDragunov
+ */
+
+define('SL7_CATALOG_ADMIN', SL7_CONTROL_PANEL_ADMIN_PATH . '/catalog');
+
+/**
+ * Implement hook_menu().
+ */
+function sl7_catalog_menu() {
+
+  $item[SL7_CATALOG_ADMIN] = array(
+    'title' => 'Каталог',
+    'position' => 'left',
+    'page callback' => 'system_admin_menu_block_page',
+    'access callback' => 'sl7_control_panel_access',
+    'access arguments' => array('view'),
+    'file path' => drupal_get_path('module', 'system'),
+    'file' => 'system.admin.inc',
+  );
+
+  $item[SL7_CATALOG_ADMIN . '/add/sl7-catalog-product'] = array(
+    'title' => 'Добавить товар',
+    'description' => 'Добавить товар в каталог.',
+    'page callback' => 'drupal_goto',
+    'page arguments' => array('node/add/sl7-catalog-product'),
+    'access arguments' => array('create sl7_catalog_product content'),
+    'weight' => -10,
+  );
+
+  $item[SL7_CATALOG_ADMIN . '/category'] = array(
+    'title' => 'Управление категориями',
+    'description' => 'Изменение структуры категорий.',
+    'page callback' => 'drupal_goto',
+    'page arguments' => array('admin/structure/taxonomy/sl7_catalog_category'),
+    'access arguments' => array('administer taxonomy'),
+    'weight' => -9,
+  );
+
+  $item['ajax/sl7-catalog/mode/%/%/%'] = array(
+    'title' => 'Load catalog mode.',
+    'page callback' => 'sl7_catalog_mode_ajax_callback',
+    'page arguments' => array(3, 4, 5),
+    'access arguments' => array('access content'),
+    'type' => MENU_CALLBACK,
+    'delivery callback' => 'ajax_deliver',
+  );
+
+  return $item;
+}
+
+/**
+ * Implement hook_theme().
+ */
+function sl7_catalog_theme() {
+  $items = array(
+    'sl7_catalog_product__teaser' => array(
+      'variables' => array('element' => null),
+      'template' => 'templates/sl7-catalog-product--teaser'
+    ),
+  );
+
+  return $items;
+}
+
+/**
+ * Implement hook_preprocess_page().
+ */
+function sl7_catalog_preprocess_page(&$vars) {
+  if (arg(0) == 'taxonomy' && arg(1) == 'term' && is_numeric(arg(2)) && arg(3) != 'edit') {
+    $term = taxonomy_term_load(arg(2));
+    $vocab = taxonomy_vocabulary_load($term->vid);
+
+    if ($vocab->machine_name == 'sl7_catalog_category') {
+      $views_sl7_catalog_category = array(
+        'views_sl7_catalog_category' => array(
+          '#markup' => views_embed_view('sl7_catalog_category', 'child_block', arg(2)),
+          '#weight' => -1,
+        ),
+      );
+      $vars['page']['content']['system_main'] = array_merge($views_sl7_catalog_category, $vars['page']['content']['system_main']);
+
+      if (isset($_SESSION['catalog_mode'])) {
+        $view_product = views_embed_view('sl7_catalog_product', $_SESSION['catalog_mode'] . '_page_mode', arg(2));
+      }
+      else {
+        $view_product = views_embed_view('sl7_catalog_product', 'teaser_page_mode', arg(2));
+      }
+      $views_sl7_catalog_product = array(
+        'views_sl7_catalog_product' => array(
+          '#prefix' => '<div id="sl7-catalog-product">',
+          '#suffix' => '</div>',
+          '#markup' => $view_product,
+          '#weight' => 2,
+        ),
+      );
+      $vars['page']['content']['system_main'] = array_merge($views_sl7_catalog_product, $vars['page']['content']['system_main']);
+
+      $page = (!empty($_GET['page'])) ? $_GET['page'] : 0;
+      $product_switch_style = array(
+        'product_switch_style' => array(
+          '#markup' => '
+          <ul class="product-switch-style">
+            <li class="left toggle-style export"><a title="Скачать весь список этой категории в файле" href="/catalog/export/' . arg(2) . '"></a></li>
+            <li class="right toggle-style table-style"><a title="Режим таблицы" class="use-ajax" href="/ajax/sl7-catalog/mode/table/' . arg(2) . '/'. $page . '"></a></li>
+            <li class="right toggle-style teaser-style"><a title="Режим анонсов" class="use-ajax" href="/ajax/sl7-catalog/mode/teaser/' . arg(2) . '/'. $page . '"></a></li>
+          </ul>',
+          '#weight' => 1,
+        ),
+      );
+      $vars['page']['content']['system_main'] = array_merge($product_switch_style, $vars['page']['content']['system_main']);
+
+      unset($vars['page']['content']['system_main']['nodes']);
+      unset($vars['page']['content']['system_main']['no_content']);
+      unset($vars['page']['content']['system_main']['term_heading']['term']['sl7_catalog_category_image']);
+      drupal_add_library('system', 'drupal.ajax');
+      drupal_add_js(drupal_get_path('module', 'sl7_catalog') . '/js/sl7_catalog.js');
+    }
+  }
+}
+
+/**
+ * Implement hook_preprocess_node().
+ */
+function sl7_catalog_preprocess_node(&$variables) {
+  if ($variables['type'] == 'sl7_catalog_product') {
+    drupal_add_css(drupal_get_path('module', 'sl7_catalog') . '/css/sl7_catalog.css');
+  }
+  if ($variables['type'] == 'sl7_catalog_product' && $variables['view_mode'] == 'teaser') {
+    array_unshift($variables['theme_hook_suggestions'], $variables['type'] . '__' . $variables['view_mode']);
+    drupal_add_css(drupal_get_path('module', 'sl7_catalog') . '/css/sl7_catalog.css');
+  }
+}
+
+/**
+ * Implements hook_preprocess_view_view().
+ */
+function sl7_catalog_preprocess_views_view(&$vars) {
+  if (isset($vars['view']->name) && $vars['view']->name = 'sl7_catalog_category') {
+    drupal_add_css(drupal_get_path('module', 'sl7_catalog') . '/css/sl7_catalog.css');
+  }
+}
+
+/**
+ * Callback для ajax загрузки разных режимов просмотра каталога.
+ *
+ * @param $mode
+ *  Name of mode (teaser, table).
+ * @param $tid
+ *  Taxonomy term ID.
+ * @param null $page
+ *  Number of page.
+ * @return array
+ */
+function sl7_catalog_mode_ajax_callback($mode, $tid, $page = NULL) {
+  $_SESSION['catalog_mode'] = $mode;
+  $view = views_get_view('sl7_catalog_product');
+  $view->set_display($mode . '_page_mode');
+  $view->set_arguments(array($tid));
+  $view->set_items_per_page(24);
+  if (!empty($page)) $view->set_current_page($page);
+  $view->pre_execute();
+  $view->execute();
+  $view->result;
+
+  $result = array('#type' => 'ajax');
+  $result['#commands'][] = array(
+    'command' => 'catalogMode',
+    'view' => $view->render(),
+  );
+
+  return $result;
+}
+
+/**
+ * Implements hook_node_info()
+ */
+function sl7_catalog_node_info() {
+  return array(
+    'sl7_catalog_product' => array(
+      'name' => 'Товар',
+      'base' => 'sl7_catalog_product',
+      'description' => 'Товар или услуга для каталога.',
+      'has_title' => TRUE,
+      'title_label' => 'Название',
+      'locked' => TRUE,
+    )
+  );
+}
+
+/**
+ * Implements hook_block_info().
+ */
+function sl7_catalog_block_info() {
+  $blocks['front_page'] = array(
+    'info' => 'Товары',
+    'status' => 1,
+    'region' => 'front',
+    'weight' => 5,
+    'visibility' => BLOCK_VISIBILITY_NOTLISTED,
+  );
+
+  return $blocks;
+}
+
+/**
+ * Implements hook_block_configure().
+ */
+function sl7_catalog_block_configure($delta = '') {
+  $form = array();
+
+  if ($delta == 'front_page') {
+    $form['view_all'] = array(
+      '#type' => 'checkbox',
+      '#title' => 'Кнопка "Все товары"',
+      '#default_value' => variable_get('sl7_catalog_product_view_all', 1),
+    );
+  }
+
+  return $form;
+}
+
+/**
+ * Implements hook_block_save().
+ */
+function sl7_catalog_block_save($delta = '', $edit = array()) {
+  if ($delta == 'front_page') {
+    variable_set('sl7_catalog_product_view_all', $edit['view_all']);
+  }
+}
+
+/**
+ * Implements hook_block_view().
+ */
+function sl7_catalog_block_view($delta = '') {
+  $block = array();
+  $result = views_get_view_result('sl7_catalog_product', 'front_page');
+
+  if ($delta == 'front_page' && count($result) > 0) {
+    $block['subject'] = 'Товары';
+    $block['content'] = array(
+      '#markup' => views_embed_view('sl7_catalog_product', 'front_page'),
+      '#attached' => array(
+        'js' => array(
+          drupal_get_path('module', 'sl7_catalog') . '/js/sl7_catalog.js',
+        ),
+      ),
+    );
+
+    if (variable_get('sl7_catalog_product_view_all', 1)) {
+      $output =   '<div class="content-center">';
+      $output .=    '<a href="/catalog" class="button">Все товары</a>';
+      $output .=  '</div>';
+
+      $block['content']['#markup'] .= $output;
+    }
+  }
+
+  return $block;
+}
+
+function sl7_catalog_views_api() {
+  return array(
+    'api' => 3,
+    'path' => drupal_get_path('module', 'sl7_catalog') . '/views',
+    'template path' => drupal_get_path('module', 'sl7_catalog') . '/templates',
+  );
+}
+
+/**
+ * Implements hook_views_default_views().
+ */
+function sl7_catalog_views_default_views() {
+  $files = file_scan_directory(drupal_get_path('module', 'sl7_catalog'). '/views', '/.view.inc/');
+  foreach ($files as $filepath => $file) {
+    require $filepath;
+    if (isset($view)) {
+      $views[$view->name] = $view;
+    }
+  }
+
+  if ($views) {
+    return $views;
+  }
+}
+
+/**
+ * Implementation of hook_image_default_styles().
+ */
+function sl7_catalog_image_default_styles() {
+  $styles = array();
+
+  $styles['sl7_catalog_category'] = array(
+    'label' => 'Каталог - категория',
+    'effects' => array(
+      array(
+        'name' => 'image_scale',
+        'data' => array('width' => 150, 'height' => 150, 'upscale' => 0),
+        'weight' => '0',
+      ),
+    ),
+  );
+
+  $styles['sl7_catalog_product'] = array(
+    'label' => 'Каталог - товар',
+    'effects' => array(
+      array(
+        'name' => 'image_scale',
+        'data' => array('width' => 150, 'height' => 150, 'upscale' => 0),
+        'weight' => '0',
+      ),
+    ),
+  );
+
+  $styles['sl7_catalog_product_slide'] = array(
+    'label' => 'Каталог - слайд товара',
+    'effects' => array(
+      array(
+        'name' => 'canvasactions_aspect',
+        'data' => array(
+          'portrait' => 'sl7_catalog_product_slide_portrait',
+          'landscape' => 'sl7_catalog_product_slide_landscape',
+          'ratio_adjustment' => 1
+        ),
+        'weight' => 1
+      ),
+      array(
+        'name' => 'canvasactions_definecanvas',
+        'data' => array(
+          'RGB' => array('HEX' => ''),
+          'under' => 1,
+          'exact' => array(
+            'width' => 500,
+            'height' => 500,
+            'xpos' => 'center',
+            'ypos' => 'center'
+          ),
+          'relative' => array(
+            'leftdiff' => '',
+            'rightdiff' => '',
+            'topdiff' => '',
+            'bottomdiff' => ''
+          )
+        ),
+        'weight' => 2
+      )
+    ),
+  );
+  $styles['sl7_catalog_product_slide_landscape'] = array(
+    'label' => 'Каталог - слайд товара (Альбомная)',
+    'effects' => array(
+      array(
+        'name' => 'image_scale',
+        'data' => array('height' => 300, 'width' => '', 'upscale' => 0),
+        'weight' => 0,
+      ),
+    ),
+  );
+  $styles['sl7_catalog_product_slide_portrait'] = array(
+    'label' => 'Каталог - слайд товара (Портретная)',
+    'effects' => array(
+      array(
+        'name' => 'image_scale',
+        'data' => array('height' => '', 'width' => 500, 'upscale' => 0),
+        'weight' => 0,
+      ),
+    ),
+  );
+
+  return $styles;
+}
+
+/**
+ * Implementation of hook_ctools_plugin_api().
+ */
+function sl7_catalog_ctools_plugin_api($owner, $api) {
+  if ($owner == 'path_breadcrumbs' && $api == 'path_breadcrumbs') {
+    return array('version' => 1);
+  }
+}
+
+/**
+ * Implement hook_path_breadcrumbs_settings_info().
+ */
+function sl7_catalog_path_breadcrumbs_settings_info() {
+  $export = array();
+
+  $path_breadcrumb = new stdClass();
+  $path_breadcrumb->api_version = 1;
+  $path_breadcrumb->machine_name = 'sl7_catalog_product';
+  $path_breadcrumb->name = 'Каталог - товар';
+  $path_breadcrumb->path = 'node/%node';
+  $path_breadcrumb->data = array(
+    'titles' => array(
+      0 => 'Каталог',
+      1 => '%node:sl7-catalog-product-category:pb-join:name',
+      2 => '%node:title',
+    ),
+    'paths' => array(
+      0 => 'catalog',
+      1 => '%node:sl7-catalog-product-category:pb-join:url',
+      2 => '<none>',
+    ),
+    'home' => 1,
+    'translatable' => 0,
+    'arguments' => array(
+      'node' => array(
+        'position' => 1,
+        'argument' => 'entity_id:node',
+        'settings' => array(
+          'identifier' => 'Материал: ID',
+        ),
+      ),
+    ),
+    'access' => array(
+      'plugins' => array(
+        0 => array(
+          'name' => 'node_type',
+          'settings' => array(
+            'type' => array(
+              'sl7_catalog_product' => 'sl7_catalog_product',
+            ),
+          ),
+          'context' => 'node',
+          'not' => FALSE,
+        ),
+      ),
+      'logic' => 'and',
+    ),
+  );
+  $path_breadcrumb->weight = 0;
+  $export['sl7_catalog_product'] = $path_breadcrumb;
+
+  $path_breadcrumb = new stdClass();
+  $path_breadcrumb->api_version = 1;
+  $path_breadcrumb->machine_name = 'sl7_catalog_category';
+  $path_breadcrumb->name = 'Каталог - категория';
+  $path_breadcrumb->path = 'taxonomy/term/%tid';
+  $path_breadcrumb->data = array(
+    'titles' => array(
+      0 => 'Каталог',
+      1 => '%tid:pb-join:name',
+    ),
+    'paths' => array(
+      0 => 'catalog',
+      1 => '%tid:pb-join:url',
+    ),
+    'home' => 1,
+    'translatable' => 0,
+    'arguments' => array(
+      'tid' => array(
+        'position' => 2,
+        'argument' => 'term',
+        'settings' => array(
+          'identifier' => 'Taxonomy term: ID',
+          'input_form' => 'tid',
+          'vids' => array(
+            20 => 0,
+            2 => 0,
+          ),
+          'breadcrumb' => 1,
+          'transform' => 0,
+        ),
+      ),
+    ),
+    'access' => array(
+      'plugins' => array(
+        0 => array(
+          'name' => 'term_vocabulary',
+          'settings' => array(
+            'machine_name' => array(
+              'sl7_catalog_category' => 'sl7_catalog_category',
+            ),
+          ),
+          'context' => 'tid',
+          'not' => FALSE,
+        ),
+      ),
+      'logic' => 'and',
+    ),
+  );
+  $path_breadcrumb->weight = 0;
+  $export['sl7_catalog_category'] = $path_breadcrumb;
+
+  $path_breadcrumb = new stdClass();
+  $path_breadcrumb->api_version = 1;
+  $path_breadcrumb->machine_name = 'sl7_catalog_front';
+  $path_breadcrumb->name = 'Каталог - главная';
+  $path_breadcrumb->path = 'catalog';
+  $path_breadcrumb->data = array(
+    'titles' => array(
+      0 => '!page_title',
+    ),
+    'paths' => array(
+      0 => '<none>',
+    ),
+    'home' => 1,
+    'translatable' => 0,
+    'arguments' => array(),
+    'access' => array(),
+  );
+  $path_breadcrumb->weight = 0;
+  $export['sl7_catalog_front'] = $path_breadcrumb;
+
+  return $export;
+}
+
+/**
+ * Implement hook_form()
+ */
+function sl7_catalog_product_form($node, $form_state) {
+  return node_content_form($node, $form_state);
+}

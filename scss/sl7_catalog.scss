@@ -1,0 +1,273 @@
+@import "../bower_components/susy/sass/susy";
+@import "../bower_components/bourbon/app/assets/stylesheets/bourbon";
+
+$phone-only-breakpoint: (
+  max-width: 767px,
+);
+
+$phone-up-breakpoint: (
+  min-width: 768px,
+);
+
+$big-screen-up-breakpoint: (
+  min-width: 1200px,
+);
+
+// Views.
+
+@mixin to-sl7-catalog-views-gallery {
+  @include susy-breakpoint($phone-only-breakpoint) {
+    margin-top: 15px;
+    margin-bottom: 15px;
+  }
+
+  @include susy-breakpoint($phone-up-breakpoint) {
+    @include gallery(1 of 2);
+    margin-bottom: gutter();
+  }
+
+  @include susy-breakpoint($big-screen-up-breakpoint) {
+    @include gallery(1 of 4);
+    margin-bottom: gutter();
+  }
+}
+
+.sl7-catalog-product,
+.sl7-catalog-category {
+  @include susy-clearfix;
+
+  .list {
+    @include susy-clearfix;
+
+    > div {
+      @include to-sl7-catalog-views-gallery();
+
+      .item {
+        width: 100%;
+        display: table;
+
+        > * {
+          display: table-row;
+
+          > span {
+            @include size(100%);
+            display: table-cell;
+            text-align: center;
+            vertical-align: middle;
+          }
+        }
+
+        .name > span {
+          padding: 15px 0 0 0;
+        }
+
+        .img > span {
+          height: 150px;
+
+          img {
+            vertical-align: bottom;
+
+            @include susy-breakpoint($phone-only-breakpoint) {
+              display: inline;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  table { width: 100%; }
+
+  // Fix export icon at views
+  img[title="XLS"] { display: none; }
+
+  // Fix overflow.
+  p { word-wrap: break-word; }
+
+  // table price right
+  .views-field-sl7-catalog-product-price { text-align: right; }
+}
+
+// sl7_catalog_product node.
+
+.node-sl7-catalog-product {
+  @include susy-clearfix;
+  display: block;
+
+  // Teaser.
+
+  &.node-teaser {
+    > a.wrapper {
+      > * {
+        > span {
+          width: 100%;
+          display: block;
+          text-align: center;
+          vertical-align: middle;
+        }
+      }
+
+      .img {
+        display: table;
+        width: 100%;
+
+        > span {
+          display: table-cell;
+          height: 150px;
+
+          img {
+            vertical-align: bottom;
+
+            @include susy-breakpoint($phone-only-breakpoint) {
+              display: inline;
+            }
+          }
+        }
+      }
+
+      .name > span {
+        padding: 15px 0 0 0;
+      }
+
+      .description > span {
+        padding: 15px 0 0 0;
+
+        &:empty {
+          padding: 0 !important;
+        }
+
+        p {
+          padding: 0;
+          margin: 0;
+        }
+      }
+
+      .price > span {
+        padding: 15px 0 0 0;
+      }
+    }
+  }
+
+  // Full.
+
+  .field-name-sl7-catalog-product-price,
+  .field-name-sl7-catalog-product-image {
+    margin-bottom: 15px;
+  }
+
+  .gallery-slides {
+    .panel-overlay {
+      color: white !important;
+
+      h2, h3, h4, h5, h6 {
+        color: white !important;
+      }
+    }
+  }
+
+  @include susy-breakpoint($phone-only-breakpoint) {
+    .gallery-slides {
+      @include susy-clearfix;
+      width: 100% !important;
+      float: left !important;
+      margin-left: 0 !important;
+      margin-right: 0 !important;
+
+      .gallery-frame {
+        width: 100% !important;
+
+        .gallery-slide {
+          width: 100% !important;
+
+          img {
+            width: 100% !important;
+            height: auto !important;
+          }
+        }
+      }
+    }
+
+    .gallery-thumbs {
+      @include susy-clearfix;
+      padding: 0 !important;
+      width: 100% !important;
+      float: left !important;
+    }
+  }
+}
+
+// Переключатели.
+
+ul.product-switch-style {
+  @include susy-clearfix;
+  list-style: none outside none;
+  padding: 0 !important;
+  margin: 0 0 15px 0 !important;
+
+  li {
+    @include size(30px);
+    margin: 0;
+    display: block;
+    cursor: pointer;
+
+    &.left {
+      margin-right: 15px;
+      float: left;
+    }
+
+    &.right {
+      margin-left: 15px;
+      float: right;
+    }
+
+    &.table-style {
+      a {
+        background: {
+          image: url('../img/sl7_catalog_table.svg');
+          repeat: no-repeat;
+          position: center;
+          size: 100% auto;
+        }
+      }
+    }
+
+    &.teaser-style {
+      a {
+        background: {
+          image: url('../img/sl7_catalog_teaser.svg');
+          repeat: no-repeat;
+          position: center;
+          size: 100% auto;
+        }
+      }
+    }
+
+    &.export {
+      a {
+        background: {
+          image: url('../img/sl7_catalog_export.svg');
+          repeat: no-repeat;
+          position: center;
+          size: 100% auto;
+        }
+      }
+    }
+
+    a {
+      @include size(100%);
+      display: block;
+    }
+
+    .ajax-progress {
+      display: none;
+    }
+  }
+}
+
+// Front block.
+
+#block-sl7-catalog-front-page {
+  .content-center {
+    margin-top: gutter();
+  }
+}

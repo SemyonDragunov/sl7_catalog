@@ -1,0 +1,361 @@
+<?php
+
+/**
+ * @author Semyon Dragunov <sam.dragunov@gmail.com>
+ * https://github.com/SemyonDragunov
+ */
+
+/**
+ * Implements hook_install().
+ */
+function sl7_catalog_install() {
+  $t = get_t();
+
+  _sl7_catalog_create_taxonomy();
+  _sl7_catalog_create_node_type();
+
+  // Set path breadcrumbs settings.
+  variable_set('path_breadcrumbs_home_link_title', 'Главная');
+
+  // Set pathauto pattern
+  variable_set('pathauto_taxonomy_term_sl7_catalog_category_pattern', 'catalog/[term:parents:join-path]/[term:name]');
+  variable_set('pathauto_node_sl7_catalog_product_pattern', 'catalog/[node:sl7-catalog-product-category:parents:join-path]/[node:sl7-catalog-product-category:name]/[node:title]');
+}
+
+function _sl7_catalog_create_node_type() {
+
+  node_types_rebuild();
+  $types = node_type_get_types();
+  node_add_body_field($types['sl7_catalog_product'], 'Описание');
+  variable_set("comment_{$types['sl7_catalog_product']->type}", 1);
+  variable_set("node_preview_{$types['sl7_catalog_product']->type}", 0);
+  variable_set("node_options_{$types['sl7_catalog_product']->type}", array('status'));
+  variable_set("node_submitted_{$types['sl7_catalog_product']->type}", 0);
+
+  $fields = array(
+    'sl7_catalog_product_category' => array(
+      'field_name' => 'sl7_catalog_product_category',
+      'type' => 'taxonomy_term_reference',
+      'cardinality' => 1,
+      'locked' => TRUE,
+      'settings' => array(
+        'allowed_values' => array(
+          array(
+            'vocabulary' => 'sl7_catalog_category',
+            'parent' => 0
+          ),
+        ),
+      ),
+    ),
+    'sl7_catalog_product_image' => array(
+      'field_name' => 'sl7_catalog_product_image',
+      'type' => 'image',
+      'cardinality' => FIELD_CARDINALITY_UNLIMITED,
+      'module' => 'image',
+      'locked' => TRUE,
+      'settings' => array(
+        'uri_scheme' => 'public',
+        'default_image' => 0,
+      ),
+      'foreign keys' => array(
+        'fid' => array(
+          'columns' => array(
+            'fid' => 'fid',
+          ),
+          'table' => 'file_managed',
+        ),
+      ),
+      'indexes' => array(
+        'fid' => array(
+          0 => 'fid',
+        ),
+      ),
+    ),
+    'sl7_catalog_product_price' => array(
+      'field_name' => 'sl7_catalog_product_price',
+      'label' => 'Стоимость товара',
+      'locked' => TRUE,
+      'type' => 'text',
+      'settings' => array(
+        'max_length' => 20,
+      )
+    ),
+    'sl7_catalog_extra_output' => array(
+      'field_name' => 'sl7_catalog_extra_output',
+      'type' => 'taxonomy_term_reference',
+      'label' => 'Специальный вывод',
+      'cardinality' => FIELD_CARDINALITY_UNLIMITED,
+      'locked' => TRUE,
+      'settings' => array(
+        'allowed_values' => array(
+          array(
+            'vocabulary' => 'sl7_catalog_extra_output',
+            'parent' => 0
+          ),
+        ),
+      ),
+    ),
+  );
+  foreach ($fields as $field) {
+    $exists = db_query("SELECT id FROM {field_config} WHERE field_name=:field_name", array(':field_name' => $field['field_name']))->fetchField();
+    if (!$exists) {
+      field_create_field($field);
+    }
+  }
+
+  $instances = array(
+    'sl7_catalog_product_category' => array(
+      'field_name' => 'sl7_catalog_product_category',
+      'description' => '<a href="/admin/structure/taxonomy/sl7_catalog_category" target="_blank">Управление категориями.</a>',
+      'entity_type' => 'node',
+      'label' => 'Категория',
+      'bundle' => 'sl7_catalog_product',
+      'required' => true,
+      'widget' => array(
+        'type' => 'options_select'
+      ),
+      'display' => array(
+        'default' => array('type' => 'hidden'),
+        'teaser' => array('type' => 'hidden')
+      ),
+    ),
+    'sl7_catalog_product_image' => array(
+      'field_name' => 'sl7_catalog_product_image',
+      'entity_type' => 'node',
+      'bundle' => 'sl7_catalog_product',
+      'required' => TRUE,
+      'label' => 'Изображение',
+      'settings' => array(
+        'max_filesize' => 1024*1024*2,
+        'file_extensions' => 'png gif jpg jpeg',
+        'file_directory' => 'sl7_catalog',
+      ),
+      'widget' => array(
+        'type' => 'image_image',
+        'module' => 'image',
+      ),
+      'display' => array(
+        'default' => array(
+          'label' => 'hidden',
+          'type' => 'galleryformatter_default',
+          'settings' => array(
+            'slide_style' => 'sl7_catalog_product_slide',
+            'thumb_style' => 'galleryformatter_thumb',
+            'modal' => 'colorbox',
+            'linking_method' => 'onclick_full',
+          ),
+          'weight' => -2,
+        ),
+        'teaser' => array(
+          'label' => 'hidden',
+          'type' => 'image',
+          'settings' => array(
+            'image_style' => 'sl7_catalog_product'
+          ),
+        ),
+      ),
+    ),
+    'sl7_catalog_product_price' => array(
+      'field_name' => 'sl7_catalog_product_price',
+      'entity_type' => 'node',
+      'bundle' => 'sl7_catalog_product',
+      'type' => 'text',
+      'label' => 'Стоимость товара',
+      'widget' => array(
+        'type' => 'text_textfield'
+      ),
+      'display' => array(
+        'default' => array(
+          'label' => 'inline',
+          'type' => 'text',
+          'weight' => -1,
+        )
+      )
+    ),
+    'sl7_catalog_extra_output' => array(
+      'field_name' => 'sl7_catalog_extra_output',
+      'description' => 'Если необходимо выводить этот товар в особых местах. Можно указать несколько категорий сразу, через удержание кнопки Ctrl.<br />Дополнительные места вывода Вы можете заказать через <a href="http://elsa.sl-7.ru/billmgr" target="_blank">создание запроса</a>.',
+      'entity_type' => 'node',
+      'label' => 'Специальный вывод',
+      'bundle' => 'sl7_catalog_product',
+      'widget' => array(
+        'type' => 'options_select',
+        'weight' => 50,
+      ),
+      'display' => array(
+        'default' => array(
+          'label' => 'hidden',
+          'type' => 'hidden',
+        ),
+        'teaser' => array(
+          'label' => 'hidden',
+          'type' => 'hidden',
+        )
+      ),
+    ),
+  );
+  foreach ($instances as $instance) {
+    $exists = db_query("SELECT id FROM {field_config_instance} WHERE field_name=:field_name AND entity_type=:entity_type AND bundle=:bundle", array(':field_name' => $instance['field_name'], ':entity_type' => $instance['entity_type'], ':bundle' => $instance['bundle']))->fetchField();
+    if (!$exists) {
+      field_create_instance($instance);
+    }
+  }
+}
+
+function _sl7_catalog_create_taxonomy() {
+
+  // Create taxonomy vocabulary.
+  $vocab1 = (object) array(
+    'name' => 'Специальный вывод товаров',
+    'description' => 'Места дополнительного вывода товара.',
+    'machine_name' => 'sl7_catalog_extra_output',
+  );
+  if (!taxonomy_vocabulary_machine_name_load($vocab1->machine_name)) {
+    taxonomy_vocabulary_save($vocab1);
+    $term_front_page = (object) array(
+      'name' => 'Главная страница',
+      'vid' => $vocab1->vid,
+    );
+    taxonomy_term_save($term_front_page);
+    variable_set('sl7_catalog_extra_output_front_page_tid', $term_front_page->tid);
+  }
+
+  $vocab2 = (object) array(
+    'name' => 'Каталог',
+    'description' => 'Каталог продукции или услуг.',
+    'machine_name' => 'sl7_catalog_category',
+  );
+  if (!taxonomy_vocabulary_machine_name_load($vocab2->machine_name)) {
+    taxonomy_vocabulary_save($vocab2);
+  }
+
+  $fields = array(
+    'sl7_catalog_category_image' => array(
+      'field_name' => 'sl7_catalog_category_image',
+      'type' => 'image',
+      'cardinality' => 9,
+      'module' => 'image',
+      'locked' => TRUE,
+      'settings' => array(
+        'uri_scheme' => 'public',
+        'default_image' => 0,
+      ),
+      'foreign keys' => array(
+        'fid' => array(
+          'columns' => array(
+            'fid' => 'fid',
+          ),
+          'table' => 'file_managed',
+        ),
+      ),
+      'indexes' => array(
+        'fid' => array(
+          0 => 'fid',
+        ),
+      ),
+    ),
+  );
+  foreach ($fields as $field) {
+    $exists = db_query("SELECT id FROM {field_config} WHERE field_name=:field_name", array(':field_name' => $field['field_name']))->fetchField();
+    if (!$exists) {
+      field_create_field($field);
+    }
+  }
+
+  $instances = array(
+    'sl7_catalog_category_image' => array(
+      'field_name' => 'sl7_catalog_category_image',
+      'entity_type' => 'taxonomy_term',
+      'bundle' => $vocab2->machine_name,
+      'required' => TRUE,
+      'label' => 'Изображение',
+      'settings' => array(
+        'max_filesize' => 1024*1024*2,
+        'file_extensions' => 'png gif jpg jpeg',
+        'file_directory' => 'sl7_catalog',
+      ),
+      'widget' => array(
+        'type' => 'image_image',
+        'module' => 'image',
+        'weight' => 1,
+      ),
+      'display' => array(
+        'default' => array(
+          'label' => 'hidden',
+          'type' => 'image',
+          'settings' => array(
+            'image_style' => 'sl7_catalog_category'
+          ),
+        ),
+      ),
+    ),
+  );
+  foreach ($instances as $instance) {
+    $exists = db_query("SELECT id FROM {field_config_instance} WHERE field_name=:field_name AND entity_type=:entity_type AND bundle=:bundle", array(':field_name' => $instance['field_name'], ':entity_type' => $instance['entity_type'], ':bundle' => $instance['bundle']))->fetchField();
+    if (!$exists) {
+      field_create_instance($instance);
+    }
+  }
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function sl7_catalog_uninstall() {
+  // Удаление нод sl7_catalog_product
+  $node_type = 'sl7_catalog_product';
+  $sql = 'SELECT nid FROM {node} n WHERE n.type = :type';
+  $result = db_query($sql, array(':type' => $node_type));
+  $nids = array();
+  foreach ($result as $row) {
+    $nids[] = $row->nid;
+  }
+  node_delete_multiple($nids);
+  node_type_delete($node_type);
+
+  // Удаление полей
+  field_attach_delete_bundle('node', 'sl7_catalog_product');
+  db_delete('field_config_instance')->condition('entity_type', 'node')->condition('bundle', 'sl7_catalog_product')->execute();
+  db_delete('field_config_instance')
+    ->condition('field_name', 'comment_body')
+    ->condition('bundle', 'comment_node_sl7_catalog_product')
+    ->execute();
+
+  field_attach_delete_bundle('taxonomy_term', 'sl7_catalog_category');
+  db_delete('field_config_instance')->condition('entity_type', 'taxonomy_term')->condition('bundle', 'sl7_catalog_category')->execute();
+  db_delete('field_config')->condition('field_name', 'sl7_catalog_category_%', 'LIKE')->execute();
+
+  // Удаление таксономии
+  $vocabs = array(
+    'sl7_catalog_category',
+    'sl7_catalog_extra_output',
+  );
+  foreach ($vocabs as $name) {
+    if ($vocab = taxonomy_vocabulary_machine_name_load($name)) {
+      taxonomy_vocabulary_delete($vocab->vid);
+    }
+  }
+
+  // Удаление views
+  $views = array(
+    'sl7_catalog_category',
+    'sl7_catalog_product',
+  );
+  foreach ($views as $name) {
+    if ($view = views_get_view($name)) {
+      $view->delete();
+    }
+  }
+
+  // Delete variables.
+  $result = db_select('variable', 'v')
+    ->fields('v', array('name'))
+    ->condition('name', 'sl7_catalog_%', 'LIKE')
+    ->execute();
+
+  foreach ($result as $row) {
+    variable_del($row->name);
+  }
+
+  field_purge_batch(1000);
+}
